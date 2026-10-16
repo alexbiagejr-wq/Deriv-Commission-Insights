@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -30,7 +29,6 @@ export default function SettingsScreen() {
   const { isReady, session, settings, saveSettings, disconnect } = useAuth();
   const [draft, setDraft] = useState<typeof settings | null>(null);
   const [saving, setSaving] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const current = draft ?? settings;
 
@@ -58,7 +56,7 @@ export default function SettingsScreen() {
   const handleDisconnect = async () => {
     await disconnect();
     setMessage(
-      "Deriv account disconnected. The saved App ID and OAuth settings remain on this device.",
+      "API token disconnected. The saved App ID remains on this device.",
     );
   };
 
@@ -145,8 +143,8 @@ export default function SettingsScreen() {
             </Text>
             <Text style={[styles.panelCopy, { color: colors.mutedForeground }]}>
               {session
-                ? `Connected with ${session.method === "pat" ? "a personal token" : "Deriv OAuth"}.`
-                : "Choose a personal token or sign in with Deriv."}
+                ? "Connected with an API token."
+                : "Connect with a Deriv API token."}
             </Text>
           </View>
           {session ? (
@@ -208,68 +206,6 @@ export default function SettingsScreen() {
           busy={saving}
         />
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: advancedOpen }}
-          onPress={() => setAdvancedOpen((open) => !open)}
-          style={[styles.advancedToggle, { borderTopColor: colors.border }]}
-        >
-          <View style={styles.advancedToggleCopy}>
-            <Feather name="sliders" size={15} color={colors.mutedForeground} />
-            <Text
-              style={[styles.advancedToggleText, { color: colors.foreground }]}
-            >
-              Advanced API settings
-            </Text>
-          </View>
-          <Feather
-            name={advancedOpen ? "chevron-up" : "chevron-down"}
-            size={17}
-            color={colors.mutedForeground}
-          />
-        </Pressable>
-        {advancedOpen ? (
-          <View style={styles.advancedFields}>
-            <Text style={[styles.panelCopy, { color: colors.mutedForeground }]}>
-              Register the exact redirect URL with your Deriv app. Web uses
-              https://indexnavigator.site/oauth; installed mobile apps use the
-              custom app URL.
-            </Text>
-            <Field
-              label="OAuth Client ID"
-              value={current.oauthClientId}
-              placeholder="Registered OAuth client"
-              onChangeText={(value) => edit("oauthClientId", value)}
-              colors={colors}
-            />
-            <Field
-              label="Registered redirect URL"
-              value={current.redirectUri}
-              placeholder={
-                Platform.OS === "web"
-                  ? "https://indexnavigator.site/oauth"
-                  : "deriv-commission-insights://oauth"
-              }
-              onChangeText={(value) => edit("redirectUri", value)}
-              colors={colors}
-              autoCapitalize="none"
-            />
-            <Pressable
-              accessibilityRole="link"
-              onPress={() =>
-                void Linking.openURL(
-                  "https://developers.deriv.com/docs/intro/oauth/",
-                )
-              }
-              style={styles.docsLink}
-            >
-              <Feather name="external-link" size={15} color={colors.primary} />
-              <Text style={[styles.docsText, { color: colors.primary }]}>
-                Deriv OAuth setup guide
-              </Text>
-            </Pressable>
-          </View>
-        ) : null}
       </Panel>
 
       <Panel style={styles.permissionsPanel}>
@@ -422,25 +358,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     letterSpacing: 0.3,
   },
-  advancedToggle: {
-    minHeight: 42,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#dce6dd",
-    paddingTop: 10,
-  },
-  advancedToggleCopy: { flexDirection: "row", alignItems: "center", gap: 8 },
-  advancedToggleText: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
-  advancedFields: { gap: 14 },
-  docsLink: {
-    minHeight: 38,
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 8,
-  },
-  docsText: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
   permissionsPanel: { gap: 12 },
   permissionTitleRow: { flexDirection: "row", alignItems: "center", gap: 11 },
   permissionIcon: {

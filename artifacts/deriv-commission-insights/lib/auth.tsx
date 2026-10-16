@@ -1,7 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
-import * as WebBrowser from "expo-web-browser";
 import React, {
   createContext,
   useCallback,
@@ -12,19 +10,8 @@ import React, {
 } from "react";
 import { Platform } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  AuthMethod,
-  DerivSession,
-} from "@/lib/deriv";
-import {
-  DEFAULT_DERIV_APP_ID,
-  DEFAULT_NATIVE_OAUTH_REDIRECT_URI,
-  DEFAULT_OAUTH_CLIENT_ID,
-  DEFAULT_OAUTH_REDIRECT_URI,
-  LEGACY_OAUTH_REDIRECT_URI,
-} from "@/lib/config";
-
-WebBrowser.maybeCompleteAuthSession();
+import { DerivSession } from "@/lib/deriv";
+import { DEFAULT_DERIV_APP_ID } from "@/lib/config";
 
 const TOKEN_KEY = "deriv.access-token";
 const METHOD_KEY = "deriv.auth-method";
@@ -32,8 +19,6 @@ const SETTINGS_KEY = "deriv.connection-settings";
 
 export interface DerivSettings {
   appId: string;
-  oauthClientId: string;
-  redirectUri: string;
 }
 
 interface AuthContextValue {
@@ -41,59 +26,24 @@ interface AuthContextValue {
   session: DerivSession | null;
   settings: DerivSettings;
   connectWithToken: (token: string) => Promise<void>;
-  connectWithOAuth: () => Promise<void>;
   saveSettings: (settings: DerivSettings) => Promise<void>;
   disconnect: () => Promise<void>;
 }
 
 const defaultSettings: DerivSettings = {
   appId: DEFAULT_DERIV_APP_ID,
-  oauthClientId: DEFAULT_OAUTH_CLIENT_ID,
-  redirectUri:
-    Platform.OS === "web"
-      ? DEFAULT_OAUTH_REDIRECT_URI
-      : DEFAULT_NATIVE_OAUTH_REDIRECT_URI,
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function encodeBase64Url(bytes: Uint8Array): string {
-  const alphabet =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  let encoded = "";
-  for (let index = 0; index < bytes.length; index += 3) {
-    const first = bytes[index] ?? 0;
-    const second = bytes[index + 1] ?? 0;
-    const third = bytes[index + 2] ?? 0;
-    const value = (first << 16) | (second << 8) | third;
-    encoded += alphabet[(value >> 18) & 63];
-    encoded += alphabet[(value >> 12) & 63];
-    encoded += index + 1 < bytes.length ? alphabet[(value >> 6) & 63] : "=";
-    encoded += index + 2 < bytes.length ? alphabet[value & 63] : "=";
-  }
-  return encoded.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
 function nextSessionId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function parseErrorMessage(value: unknown): string | null {
-  if (typeof value !== "object" || value === null) return null;
-  const object = value as Record<string, unknown>;
-  if (typeof object.error_description === "string") {
-    return object.error_description;
-  }
-  if (typeof object.message === "string") return object.message;
-  if (typeof object.error === "string") return object.error;
-  return null;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const [isReady, setIsReady] = useState(false);
   const [token, setToken] = useState<string | null>(null);
-  const [method, setMethod] = useState<AuthMethod | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [settings, setSettings] = useState<DerivSettings>(defaultSettings);
 
@@ -111,19 +61,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!mounted) return;
         if (savedSettings) {
           const parsed = JSON.parse(savedSettings) as Partial<DerivSettings>;
-          setSettings({
-            appId: parsed.appId ?? defaultSettings.appId,
-            oauthClientId:
-              parsed.oauthClientId ?? defaultSettings.oauthClientId,
-            redirectUri:
-              parsed.redirectUri === LEGACY_OAUTH_REDIRECT_URI
-                ? defaultSettings.redirectUri
-                : (parsed.redirectUri ?? defaultSettings.redirectUri),
-          });
+          setSettings({ appId: parsed.appId ?? defaultSettings.appId });
         }
-        if (savedToken && (savedMethod === "pat" || savedMethod === "oauth")) {
+        if (savedToken && savedMethod === "pat") {
           setToken(savedToken);
-          setMethod(savedMethod);
           setSessionId(nextSessionId());
         }
       } finally {
@@ -136,15 +77,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const session = useMemo<DerivSession | null>(() => {
-    if (!token || !method || !sessionId) return null;
-    return { token, method, appId: settings.appId, id: sessionId };
-  }, [method, sessionId, settings.appId, token]);
+    if (!token || !sessionId) return null;
+    return { token, appId: settings.appId, id: sessionId };
+  }, [sessionId, settings.appId, token]);
 
   const saveSettings = useCallback(async (next: DerivSettings) => {
     const normalized = {
       appId: next.appId.trim(),
-      oauthClientId: next.oauthClientId.trim(),
-      redirectUri: next.redirectUri.trim(),
     };
     if (!normalized.appId) throw new Error("Enter a Deriv App ID.");
     await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(normalized));
@@ -152,15 +91,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const finishConnection = useCallback(
-    async (accessToken: string, authMethod: AuthMethod) => {
+    async (accessToken: string) => {
       if (!settings.appId.trim())
         throw new Error("Enter a Deriv App ID in Settings.");
       if (Platform.OS !== "web") {
         await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
       }
-      await AsyncStorage.setItem(METHOD_KEY, authMethod);
+      await AsyncStorage.setItem(METHOD_KEY, "pat");
       setToken(accessToken);
-      setMethod(authMethod);
       setSessionId(nextSessionId());
       await queryClient.invalidateQueries();
     },
@@ -171,102 +109,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (value: string) => {
       const accessToken = value.trim();
       if (!accessToken)
-        throw new Error("Paste your Deriv personal access token.");
-      await finishConnection(accessToken, "pat");
+        throw new Error("Paste your Deriv API token.");
+      await finishConnection(accessToken);
     },
     [finishConnection],
   );
-
-  const connectWithOAuth = useCallback(async () => {
-    const clientId = settings.oauthClientId.trim();
-    const redirectUri = settings.redirectUri.trim();
-    if (!clientId) {
-      throw new Error("Add your registered OAuth Client ID in Settings first.");
-    }
-    if (!redirectUri) {
-      throw new Error(
-        "Add the redirect URL registered with Deriv in Settings.",
-      );
-    }
-
-    const verifier = encodeBase64Url(await Crypto.getRandomBytesAsync(64));
-    const state = encodeBase64Url(await Crypto.getRandomBytesAsync(16));
-    const challengeBase64 = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      verifier,
-      { encoding: Crypto.CryptoEncoding.BASE64 },
-    );
-    const challenge = challengeBase64
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
-
-    const authUrl = new URL("https://auth.deriv.com/oauth2/auth");
-    authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("client_id", clientId);
-    authUrl.searchParams.set("redirect_uri", redirectUri);
-    authUrl.searchParams.set("scope", "application_read trade");
-    authUrl.searchParams.set("state", state);
-    authUrl.searchParams.set("code_challenge", challenge);
-    authUrl.searchParams.set("code_challenge_method", "S256");
-
-    const authResult = await WebBrowser.openAuthSessionAsync(
-      authUrl.toString(),
-      redirectUri,
-    );
-    if (authResult.type !== "success" || !authResult.url) {
-      throw new Error(
-        "Deriv sign-in was cancelled or did not return to the app.",
-      );
-    }
-
-    const callback = new URL(authResult.url);
-    const oauthError = callback.searchParams.get("error");
-    if (oauthError) {
-      throw new Error(
-        callback.searchParams.get("error_description") ?? oauthError,
-      );
-    }
-    if (callback.searchParams.get("state") !== state) {
-      throw new Error("The Deriv sign-in response could not be verified.");
-    }
-    const code = callback.searchParams.get("code");
-    if (!code) throw new Error("Deriv did not return an authorization code.");
-
-    const body = [
-      ["grant_type", "authorization_code"],
-      ["client_id", clientId],
-      ["code", code],
-      ["redirect_uri", redirectUri],
-      ["code_verifier", verifier],
-    ]
-      .map(
-        ([key, value]) =>
-          `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
-      )
-      .join("&");
-
-    const response = await fetch("https://auth.deriv.com/oauth2/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
-    });
-    const payload: unknown = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(
-        parseErrorMessage(payload) ??
-          `Deriv sign-in failed (${response.status}).`,
-      );
-    }
-    const accessToken =
-      typeof payload === "object" && payload !== null
-        ? (payload as Record<string, unknown>).access_token
-        : null;
-    if (typeof accessToken !== "string" || !accessToken) {
-      throw new Error("Deriv did not return an access token.");
-    }
-    await finishConnection(accessToken, "oauth");
-  }, [finishConnection, settings.oauthClientId, settings.redirectUri]);
 
   const disconnect = useCallback(async () => {
     if (Platform.OS !== "web") {
@@ -274,7 +121,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     await AsyncStorage.removeItem(METHOD_KEY);
     setToken(null);
-    setMethod(null);
     setSessionId(null);
     queryClient.clear();
   }, [queryClient]);
@@ -285,12 +131,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       settings,
       connectWithToken,
-      connectWithOAuth,
       saveSettings,
       disconnect,
     }),
     [
-      connectWithOAuth,
       connectWithToken,
       disconnect,
       isReady,

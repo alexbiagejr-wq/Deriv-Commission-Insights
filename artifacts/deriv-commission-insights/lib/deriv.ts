@@ -1,8 +1,5 @@
-export type AuthMethod = 'pat' | 'oauth';
-
 export interface DerivSession {
   token: string;
-  method: AuthMethod;
   appId: string;
   id: string;
 }
@@ -97,9 +94,7 @@ async function getJson<T>(
     Accept: 'application/json',
     Authorization: `Bearer ${session.token}`,
   };
-  if (session.method === 'pat') {
-    headers['Deriv-App-ID'] = session.appId;
-  }
+  headers['Deriv-App-ID'] = session.appId;
 
   let response: Response;
   try {

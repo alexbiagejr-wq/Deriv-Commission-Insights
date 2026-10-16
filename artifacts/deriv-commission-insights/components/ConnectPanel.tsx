@@ -15,15 +15,15 @@ import { ActionButton, InlineMessage, Panel } from '@/components/ui';
 
 export function ConnectPanel() {
   const colors = useColors();
-  const { connectWithToken, connectWithOAuth, settings } = useAuth();
+  const { connectWithToken, settings } = useAuth();
   const [token, setToken] = useState('');
-  const [busy, setBusy] = useState<'pat' | 'oauth' | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleTokenConnect = async () => {
     Keyboard.dismiss();
     setError(null);
-    setBusy('pat');
+    setBusy(true);
     try {
       await connectWithToken(token);
       setToken('');
@@ -32,21 +32,7 @@ export function ConnectPanel() {
       setError(friendlyApiError(reason));
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
-      setBusy(null);
-    }
-  };
-
-  const handleOAuthConnect = async () => {
-    setError(null);
-    setBusy('oauth');
-    try {
-      await connectWithOAuth();
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (reason) {
-      setError(friendlyApiError(reason));
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setBusy(null);
+      setBusy(false);
     }
   };
 
@@ -58,7 +44,7 @@ export function ConnectPanel() {
         </View>
         <View style={styles.introCopy}>
           <Text style={[styles.title, { color: colors.foreground }]}>
-            Connect your Deriv account
+            Connect with an API token
           </Text>
           <Text style={[styles.description, { color: colors.mutedForeground }]}>
             Partner reporting needs the application_read permission.
@@ -67,10 +53,10 @@ export function ConnectPanel() {
       </View>
 
       <TextInput
-        accessibilityLabel="Deriv personal access token"
+        accessibilityLabel="Deriv API token"
         autoCapitalize="none"
         autoCorrect={false}
-        placeholder="Personal access token"
+        placeholder="Deriv API token"
         placeholderTextColor={colors.mutedForeground}
         secureTextEntry
         value={token}
@@ -90,27 +76,16 @@ export function ConnectPanel() {
       {error ? <InlineMessage tone="error">{error}</InlineMessage> : null}
 
       <ActionButton
-        label="Connect with personal token"
+        label="Log in with API token"
         icon="key"
         onPress={() => void handleTokenConnect()}
-        busy={busy === 'pat'}
-        disabled={!token.trim() || busy !== null}
-      />
-      <ActionButton
-        label="Log in with Deriv"
-        icon="log-in"
-        variant="secondary"
-        onPress={() => void handleOAuthConnect()}
-        busy={busy === 'oauth'}
-        disabled={busy !== null}
+        busy={busy}
+        disabled={!token.trim() || busy}
       />
       <Text style={[styles.privacy, { color: colors.mutedForeground }]}>
         {Platform.OS === 'web'
           ? 'Web preview keeps the token in memory only. The installed mobile app uses secure device storage.'
           : 'Your token stays in this device’s secure storage and is sent directly to Deriv.'}
-      </Text>
-      <Text style={[styles.privacy, { color: colors.mutedForeground }]}>
-        OAuth uses the registered client ID and redirect URL saved in Settings.
       </Text>
       {!settings.appId.trim() ? (
         <InlineMessage tone="error">Add your Deriv App ID in Settings to connect.</InlineMessage>
