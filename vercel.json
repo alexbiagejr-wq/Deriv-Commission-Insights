@@ -1,0 +1,32 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "deriv-commission-insights": {
+      "root": "artifacts/deriv-commission-insights",
+      "framework": "other",
+      "buildCommand": "pnpm exec expo export --platform web",
+      "outputDirectory": "dist"
+    },
+    "api-server": {
+      "root": "artifacts/api-server",
+      "framework": "express",
+      "entrypoint": "src/app.ts",
+      "buildCommand": "pnpm run build"
+    },
+    "mockup-sandbox": {
+      "root": "artifacts/mockup-sandbox",
+      "framework": "vite",
+      "buildCommand": "pnpm run build",
+      "outputDirectory": "dist"
+    }
+  },
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "deriv-commission-insights"
+      }
+    }
+  ]
+}

@@ -12,6 +12,7 @@
     },
     "android": {},
     "web": {
+      "output": "static",
       "favicon": "./assets/images/icon.png"
     },
     "plugins": [
