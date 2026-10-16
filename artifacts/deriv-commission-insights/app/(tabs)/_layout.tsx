@@ -19,10 +19,6 @@ function NativeTabLayout() {
         <NativeTabs.Trigger.Icon sf={{ default: 'globe', selected: 'globe' }} />
         <NativeTabs.Trigger.Label>Apps</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="activity">
-        <NativeTabs.Trigger.Icon sf={{ default: 'waveform.path', selected: 'waveform.path' }} />
-        <NativeTabs.Trigger.Label>Live</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings">
         <NativeTabs.Trigger.Icon sf={{ default: 'gearshape', selected: 'gearshape.fill' }} />
         <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
@@ -90,18 +86,6 @@ function ClassicTabLayout() {
               <SymbolView name="globe" tintColor={color} size={22} />
             ) : (
               <Feather name="globe" size={21} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="activity"
-        options={{
-          title: 'Live',
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="waveform.path" tintColor={color} size={22} />
-            ) : (
-              <Feather name="activity" size={21} color={color} />
             ),
         }}
       />

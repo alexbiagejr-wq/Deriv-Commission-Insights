@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { ConnectPanel } from '@/components/ConnectPanel';
+import { LiveAccountSummary } from '@/components/LiveAccountSummary';
 import {
   ActionButton,
   InlineMessage,
@@ -256,6 +257,8 @@ export default function OverviewScreen() {
               </Panel>
             </>
           ) : null}
+
+          <LiveAccountSummary />
 
           <ActionButton
             label="Refresh reports"
