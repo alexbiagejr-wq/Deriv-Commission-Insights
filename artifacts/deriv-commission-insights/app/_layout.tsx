@@ -6,6 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ConnectLanding } from "@/components/ConnectLanding";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { FloatingWhatsApp } from "@/components/FloatingWhatsApp";
+import { InstallAppButton } from "@/components/InstallAppButton";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import Head from "expo-router/head";
@@ -50,6 +51,7 @@ function RootLayoutNav() {
       <Stack screenOptions={{ headerBackTitle: "Back" }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
+      <InstallAppButton />
       <FloatingWhatsApp />
     </>
   );
@@ -75,6 +77,11 @@ export default function RootLayout() {
     <>
       <Head>
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="apple-touch-icon" href="/app-icon-192.png" />
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Deriv Insights" />
+        <meta name="theme-color" content="#f2f6f2" />
       </Head>
       <SafeAreaProvider>
         <ThemeProvider>

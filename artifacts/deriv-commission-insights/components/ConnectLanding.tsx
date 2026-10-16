@@ -20,7 +20,7 @@ export function ConnectLanding() {
         access live account balances.
       </InlineMessage>
       <Text style={[styles.footer, { color: colors.mutedForeground }]}>
-        Sign in with your Deriv account to continue.
+        Enter your Deriv API token to continue.
       </Text>
     </Screen>
   );
