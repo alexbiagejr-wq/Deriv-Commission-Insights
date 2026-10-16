@@ -1,0 +1,1 @@
+- [Expo SecureStore browser preview](expo-secure-store-web.md) — avoid SecureStore on Expo web; use native-only token persistence, with browser tokens session-only.

@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/"
+title = "Deriv Commission Insights"
+description = "A native mobile dashboard for Deriv partners to monitor partner performance, registered-app markup earnings, and live authenticated account activity. Supports OAuth authorization and a securely stored personal access token."
+version = "1.0.0"
+id = "artifacts/deriv-commission-insights"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/" ]
+localPort = 20254
+
+[services.development]
+run = "pnpm --filter @workspace/deriv-commission-insights run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/deriv-commission-insights", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/deriv-commission-insights", "run", "serve" ]
+
+[services.env]
+PORT = "20254"
+BASE_PATH = "/"

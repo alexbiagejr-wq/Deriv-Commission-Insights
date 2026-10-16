@@ -1,0 +1,326 @@
+import React, { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
+import { ConnectPanel } from '@/components/ConnectPanel';
+import {
+  ActionButton,
+  InlineMessage,
+  LoadingBlock,
+  PageHeader,
+  Panel,
+  PeriodPicker,
+  Screen,
+  SectionTitle,
+  StatusPill,
+} from '@/components/ui';
+import { useColors } from '@/hooks/useColors';
+import { useAuth } from '@/lib/auth';
+import {
+  fetchMarkupStatistics,
+  fetchPartnerOverview,
+  formatUsd,
+  friendlyApiError,
+  getDateRange,
+  ReportPeriod,
+} from '@/lib/deriv';
+
+function Metric({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+}) {
+  const colors = useColors();
+  return (
+    <View style={styles.metric}>
+      <Text style={[styles.metricLabel, { color: colors.mutedForeground }]}>
+        {label}
+      </Text>
+      <Text style={[styles.metricValue, { color: colors.foreground }]}>
+        {value}
+      </Text>
+      {note ? (
+        <Text style={[styles.metricNote, { color: colors.mutedForeground }]}>
+          {note}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+export default function OverviewScreen() {
+  const colors = useColors();
+  const { session, isReady } = useAuth();
+  const [period, setPeriod] = useState<ReportPeriod>('30d');
+  const range = getDateRange(period);
+  const overviewQuery = useQuery({
+    queryKey: ['partner-overview', session?.id, range.start, range.end],
+    queryFn: () => fetchPartnerOverview(session!, range),
+    enabled: Boolean(session),
+    retry: false,
+    staleTime: 60_000,
+  });
+  const markupQuery = useQuery({
+    queryKey: ['app-markup', session?.id, range.start, range.end],
+    queryFn: () => fetchMarkupStatistics(session!, range),
+    enabled: Boolean(session),
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  const refresh = async () => {
+    await Promise.all([overviewQuery.refetch(), markupQuery.refetch()]);
+  };
+
+  if (!isReady) {
+    return (
+      <Screen>
+        <LoadingBlock label="Preparing your secure Deriv connection…" />
+      </Screen>
+    );
+  }
+
+  const overviewError = overviewQuery.error
+    ? friendlyApiError(overviewQuery.error)
+    : null;
+  const markupError = markupQuery.error
+    ? friendlyApiError(markupQuery.error)
+    : null;
+
+  return (
+    <Screen
+      refreshing={overviewQuery.isFetching || markupQuery.isFetching}
+      onRefresh={() => void refresh()}
+    >
+      <PageHeader
+        eyebrow="DERIV PARTNER INSIGHTS"
+        title="Commission overview"
+        subtitle="Partner earnings and app performance, together."
+        trailing={
+          <StatusPill
+            label={session ? 'Connected' : 'Not connected'}
+            tone={session ? 'good' : 'warning'}
+          />
+        }
+      />
+
+      {!session ? (
+        <>
+          <ConnectPanel />
+          <InlineMessage>
+            Deriv’s partner reports cover partner commissions and markup for
+            registered apps. They do not include unrelated affiliate networks.
+          </InlineMessage>
+        </>
+      ) : (
+        <>
+          <PeriodPicker value={period} onChange={setPeriod} />
+
+          {overviewError ? (
+            <InlineMessage tone="error">{overviewError}</InlineMessage>
+          ) : null}
+          {markupError ? (
+            <InlineMessage tone="error">{markupError}</InlineMessage>
+          ) : null}
+
+          {overviewQuery.isLoading ? (
+            <LoadingBlock label="Loading partner commission…" />
+          ) : overviewQuery.data ? (
+            <Panel style={styles.commissionPanel}>
+              <View style={styles.panelHeading}>
+                <View style={styles.panelTitleCopy}>
+                  <Text style={[styles.panelEyebrow, { color: colors.primary }]}>
+                    PARTNER COMMISSION
+                  </Text>
+                  <Text style={[styles.heroValue, { color: colors.foreground }]}>
+                    {formatUsd(overviewQuery.data.activity.paid)}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.heroCaption,
+                      { color: colors.mutedForeground },
+                    ]}
+                  >
+                    Paid during this period
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.heroIcon,
+                    { backgroundColor: colors.secondary },
+                  ]}
+                >
+                  <Text style={[styles.heroIconText, { color: colors.primary }]}>
+                    $
+                  </Text>
+                </View>
+              </View>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={styles.twoMetrics}>
+                <Metric
+                  label="Pending"
+                  value={formatUsd(overviewQuery.data.activity.pending)}
+                  note="Awaiting payout"
+                />
+                <Metric
+                  label="Active traders"
+                  value={String(overviewQuery.data.activity.active_traders)}
+                  note="Referred clients"
+                />
+              </View>
+            </Panel>
+          ) : null}
+
+          {markupQuery.isLoading ? (
+            <LoadingBlock label="Loading registered-app markup…" />
+          ) : markupQuery.data ? (
+            <Panel style={styles.markupPanel}>
+              <View style={styles.markupHeading}>
+                <View style={styles.panelTitleCopy}>
+                  <Text style={[styles.panelEyebrow, { color: colors.accentForeground }]}>
+                    REGISTERED APPS
+                  </Text>
+                  <Text style={[styles.markupValue, { color: colors.foreground }]}>
+                    {formatUsd(markupQuery.data.total_app_markup_usd)}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.heroCaption,
+                      { color: colors.mutedForeground },
+                    ]}
+                  >
+                    Total app markup
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.heroIcon,
+                    { backgroundColor: colors.accent },
+                  ]}
+                >
+                  <Text style={[styles.heroIconText, { color: colors.accentForeground }]}>
+                    ↗
+                  </Text>
+                </View>
+              </View>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={styles.twoMetrics}>
+                <Metric
+                  label="Trading volume"
+                  value={formatUsd(markupQuery.data.total_volume_usd)}
+                />
+                <Metric
+                  label="Contracts"
+                  value={String(markupQuery.data.total_contract_count)}
+                />
+              </View>
+            </Panel>
+          ) : null}
+
+          {overviewQuery.data ? (
+            <>
+              <SectionTitle
+                title="Partner activity"
+                detail={`${range.start} — ${range.end} · USD`}
+              />
+              <Panel style={styles.activityPanel}>
+                <Metric
+                  label="New sign-ups"
+                  value={String(overviewQuery.data.signups.total)}
+                />
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <View style={styles.twoMetrics}>
+                  <Metric
+                    label="Real accounts"
+                    value={String(overviewQuery.data.signups.real_accounts)}
+                  />
+                  <Metric
+                    label="First deposits"
+                    value={String(overviewQuery.data.signups.first_time_depositors)}
+                  />
+                </View>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <View style={styles.twoMetrics}>
+                  <Metric
+                    label="First-time traders"
+                    value={String(overviewQuery.data.signups.first_time_traders)}
+                  />
+                  <Metric
+                    label="Active sub-partners"
+                    value={String(overviewQuery.data.master_partner.active_subpartners)}
+                  />
+                </View>
+              </Panel>
+            </>
+          ) : null}
+
+          <ActionButton
+            label="Refresh reports"
+            icon="refresh-cw"
+            variant="secondary"
+            onPress={() => void refresh()}
+            busy={overviewQuery.isFetching || markupQuery.isFetching}
+          />
+        </>
+      )}
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  commissionPanel: { padding: 20, gap: 16 },
+  panelHeading: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 16,
+  },
+  panelTitleCopy: { gap: 4, flex: 1 },
+  panelEyebrow: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 1.25,
+  },
+  heroValue: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 37,
+    letterSpacing: -1.2,
+    marginTop: 3,
+  },
+  heroCaption: { fontFamily: 'Inter_400Regular', fontSize: 12 },
+  heroIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroIconText: { fontFamily: 'Inter_700Bold', fontSize: 23 },
+  divider: { height: 1, width: '100%' },
+  twoMetrics: { flexDirection: 'row', gap: 14 },
+  metric: { flex: 1, gap: 5 },
+  metricLabel: { fontFamily: 'Inter_500Medium', fontSize: 11 },
+  metricValue: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 19,
+    letterSpacing: -0.3,
+  },
+  metricNote: { fontFamily: 'Inter_400Regular', fontSize: 10 },
+  markupPanel: { padding: 20, gap: 16 },
+  markupHeading: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  markupValue: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 30,
+    letterSpacing: -0.8,
+    marginTop: 3,
+  },
+  activityPanel: { gap: 16 },
+});
