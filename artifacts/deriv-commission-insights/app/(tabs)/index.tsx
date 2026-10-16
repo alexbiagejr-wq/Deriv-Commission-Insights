@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
+import { CommissionGrowthChart } from '@/components/CommissionGrowthChart';
 import { ConnectPanel } from '@/components/ConnectPanel';
-import { LiveAccountSummary } from '@/components/LiveAccountSummary';
 import {
   ActionButton,
   InlineMessage,
@@ -21,8 +21,9 @@ import {
   fetchPartnerOverview,
   formatUsd,
   friendlyApiError,
-  getDateRange,
-  ReportPeriod,
+  getCurrentMonthDateRange,
+  getTodayDateRange,
+  DateRange,
 } from '@/lib/deriv';
 
 function Metric({
@@ -55,11 +56,23 @@ function Metric({
 export default function OverviewScreen() {
   const colors = useColors();
   const { session, isReady } = useAuth();
-  const [period, setPeriod] = useState<ReportPeriod>('30d');
-  const range = getDateRange(period);
+  const [range, setRange] = useState<DateRange>(getCurrentMonthDateRange);
+  const todayRange = getTodayDateRange();
+  const todayLabel = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${todayRange.start}T00:00:00.000Z`));
   const overviewQuery = useQuery({
     queryKey: ['partner-overview', session?.id, range.start, range.end],
     queryFn: () => fetchPartnerOverview(session!, range),
+    enabled: Boolean(session),
+    retry: false,
+    staleTime: 60_000,
+  });
+  const todayCommissionQuery = useQuery({
+    queryKey: ['today-app-commission', session?.id, todayRange.start],
+    queryFn: () => fetchMarkupStatistics(session!, todayRange),
     enabled: Boolean(session),
     retry: false,
     staleTime: 60_000,
@@ -73,7 +86,11 @@ export default function OverviewScreen() {
   });
 
   const refresh = async () => {
-    await Promise.all([overviewQuery.refetch(), markupQuery.refetch()]);
+    await Promise.all([
+      overviewQuery.refetch(),
+      todayCommissionQuery.refetch(),
+      markupQuery.refetch(),
+    ]);
   };
 
   if (!isReady) {
@@ -90,10 +107,17 @@ export default function OverviewScreen() {
   const markupError = markupQuery.error
     ? friendlyApiError(markupQuery.error)
     : null;
+  const todayCommissionError = todayCommissionQuery.error
+    ? friendlyApiError(todayCommissionQuery.error)
+    : null;
 
   return (
     <Screen
-      refreshing={overviewQuery.isFetching || markupQuery.isFetching}
+      refreshing={
+        overviewQuery.isFetching ||
+        todayCommissionQuery.isFetching ||
+        markupQuery.isFetching
+      }
       onRefresh={() => void refresh()}
     >
       <PageHeader
@@ -118,7 +142,7 @@ export default function OverviewScreen() {
         </>
       ) : (
         <>
-          <PeriodPicker value={period} onChange={setPeriod} />
+          <PeriodPicker value={range} onChange={setRange} />
 
           {overviewError ? (
             <InlineMessage tone="error">{overviewError}</InlineMessage>
@@ -126,45 +150,19 @@ export default function OverviewScreen() {
           {markupError ? (
             <InlineMessage tone="error">{markupError}</InlineMessage>
           ) : null}
+          {todayCommissionError ? (
+            <InlineMessage tone="error">{todayCommissionError}</InlineMessage>
+          ) : null}
 
-          {overviewQuery.isLoading ? (
-            <LoadingBlock label="Loading partner commission…" />
-          ) : overviewQuery.data ? (
-            <Panel style={styles.commissionPanel}>
-              <View style={styles.panelHeading}>
-                <View style={styles.panelTitleCopy}>
-                  <Text style={[styles.panelEyebrow, { color: colors.primary }]}>
-                    PARTNER COMMISSION
-                  </Text>
-                  <Text style={[styles.heroValue, { color: colors.foreground }]}>
-                    {formatUsd(overviewQuery.data.activity.paid)}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.heroCaption,
-                      { color: colors.mutedForeground },
-                    ]}
-                  >
-                    Paid during this period
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.heroIcon,
-                    { backgroundColor: colors.secondary },
-                  ]}
-                >
-                  <Text style={[styles.heroIconText, { color: colors.primary }]}>
-                    $
-                  </Text>
-                </View>
-              </View>
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          {overviewQuery.isLoading || todayCommissionQuery.isLoading ? (
+            <LoadingBlock label="Loading partner activity…" />
+          ) : overviewQuery.data && todayCommissionQuery.data ? (
+            <Panel style={styles.activitySummary}>
               <View style={styles.twoMetrics}>
                 <Metric
-                  label="Pending"
-                  value={formatUsd(overviewQuery.data.activity.pending)}
-                  note="Awaiting payout"
+                  label="Today’s commission"
+                  value={formatUsd(todayCommissionQuery.data.total_app_markup_usd)}
+                  note={`${todayLabel} · registered app markup`}
                 />
                 <Metric
                   label="Active traders"
@@ -174,6 +172,8 @@ export default function OverviewScreen() {
               </View>
             </Panel>
           ) : null}
+
+          {session ? <CommissionGrowthChart session={session} /> : null}
 
           {markupQuery.isLoading ? (
             <LoadingBlock label="Loading registered-app markup…" />
@@ -258,8 +258,6 @@ export default function OverviewScreen() {
             </>
           ) : null}
 
-          <LiveAccountSummary />
-
           <ActionButton
             label="Refresh reports"
             icon="refresh-cw"
@@ -274,7 +272,7 @@ export default function OverviewScreen() {
 }
 
 const styles = StyleSheet.create({
-  commissionPanel: { padding: 20, gap: 16 },
+  activitySummary: { padding: 20, gap: 12 },
   panelHeading: {
     flexDirection: 'row',
     justifyContent: 'space-between',

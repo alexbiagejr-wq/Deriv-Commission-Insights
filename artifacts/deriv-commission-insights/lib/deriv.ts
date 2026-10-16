@@ -7,8 +7,6 @@ export interface DerivSession {
   id: string;
 }
 
-export type ReportPeriod = '7d' | '30d' | '90d';
-
 export interface DateRange {
   start: string;
   end: string;
@@ -37,6 +35,7 @@ export interface PartnerOverview {
 
 export interface AppMarkup {
   app_id: string;
+  app_name?: string;
   app_markup_usd: number;
   volume_usd: number;
   payout_usd: number;
@@ -63,16 +62,31 @@ export class DerivApiError extends Error {
   }
 }
 
-export function getDateRange(period: ReportPeriod): DateRange {
-  const days = Number.parseInt(period, 10);
-  const end = new Date();
-  end.setUTCHours(0, 0, 0, 0);
-  const start = new Date(end);
-  start.setUTCDate(start.getUTCDate() - days + 1);
+export function getMonthDateRange(
+  month: number,
+  year = new Date().getUTCFullYear(),
+): DateRange {
+  const start = new Date(Date.UTC(year, month, 1));
+  const now = new Date();
+  const isCurrentMonth =
+    year === now.getUTCFullYear() && month === now.getUTCMonth();
+  const end = isCurrentMonth
+    ? new Date(Date.UTC(year, month, now.getUTCDate()))
+    : new Date(Date.UTC(year, month + 1, 0));
   return {
     start: start.toISOString().slice(0, 10),
     end: end.toISOString().slice(0, 10),
   };
+}
+
+export function getCurrentMonthDateRange(): DateRange {
+  const now = new Date();
+  return getMonthDateRange(now.getUTCMonth(), now.getUTCFullYear());
+}
+
+export function getTodayDateRange(): DateRange {
+  const today = new Date().toISOString().slice(0, 10);
+  return { start: today, end: today };
 }
 
 async function getJson<T>(

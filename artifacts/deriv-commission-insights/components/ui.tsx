@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -14,6 +15,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { DateRange, getMonthDateRange } from '@/lib/deriv';
 
 export function Screen({
   children,
@@ -232,43 +234,397 @@ export function PeriodPicker({
   value,
   onChange,
 }: {
-  value: '7d' | '30d' | '90d';
-  onChange: (value: '7d' | '30d' | '90d') => void;
+  value: DateRange;
+  onChange: (value: DateRange) => void;
 }) {
   const colors = useColors();
-  const options: Array<{ value: '7d' | '30d' | '90d'; label: string }> = [
-    { value: '7d', label: '7 days' },
-    { value: '30d', label: '30 days' },
-    { value: '90d', label: '90 days' },
-  ];
+  const [start, setStart] = useState(value.start);
+  const [end, setEnd] = useState(value.end);
+  const [calendarTarget, setCalendarTarget] = useState<'start' | 'end' | null>(
+    null,
+  );
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const selected = new Date(`${value.start}T00:00:00.000Z`);
+    return new Date(Date.UTC(selected.getUTCFullYear(), selected.getUTCMonth(), 1));
+  });
+  const selectedDate = new Date(`${value.start}T00:00:00.000Z`);
+  const selectedYear = selectedDate.getUTCFullYear();
+  const selectedMonth = selectedDate.getUTCMonth();
+  const months = Array.from({ length: 12 }, (_, month) =>
+    new Intl.DateTimeFormat(undefined, { month: 'long', timeZone: 'UTC' }).format(
+      new Date(Date.UTC(selectedYear, month, 1)),
+    ),
+  );
+  const monthLabel = new Intl.DateTimeFormat(undefined, {
+    month: 'long',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(selectedYear, selectedMonth, 1)));
+
+  useEffect(() => {
+    setStart(value.start);
+    setEnd(value.end);
+  }, [value.end, value.start]);
+
+  const updateRange = (nextStart: string, nextEnd: string) => {
+    setStart(nextStart);
+    setEnd(nextEnd);
+    if (
+      isValidIsoDate(nextStart) &&
+      isValidIsoDate(nextEnd) &&
+      nextStart <= nextEnd
+    ) {
+      onChange({ start: nextStart, end: nextEnd });
+    }
+  };
+
+  const dateError =
+    !isValidIsoDate(start) || !isValidIsoDate(end)
+      ? 'Choose valid dates from the calendar.'
+      : start > end
+        ? 'The start date must be on or before the end date.'
+        : null;
+
   return (
-    <View style={[styles.periodTrack, { backgroundColor: colors.muted }]}>
-      {options.map((option) => {
-        const selected = option.value === value;
-        return (
-          <Pressable
-            accessibilityRole="button"
-            key={option.value}
-            onPress={() => onChange(option.value)}
-            style={[
-              styles.periodOption,
-              selected && { backgroundColor: colors.card },
-            ]}
-          >
-            <Text
-              style={[
-                styles.periodText,
-                {
-                  color: selected ? colors.foreground : colors.mutedForeground,
-                },
-              ]}
-            >
-              {option.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+    <View style={styles.dateRangePicker}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Selected month: ${monthLabel} ${selectedYear}. Choose month`}
+        accessibilityState={{ expanded: monthPickerOpen }}
+        onPress={() => setMonthPickerOpen(true)}
+        style={[
+          styles.monthSelector,
+          { backgroundColor: colors.muted, borderColor: colors.border },
+        ]}
+      >
+        <Text style={[styles.monthSelectorText, { color: colors.foreground }]}>
+          {monthLabel} {selectedYear}
+        </Text>
+        <Feather
+          name={monthPickerOpen ? 'chevron-up' : 'chevron-down'}
+          size={17}
+          color={colors.mutedForeground}
+        />
+      </Pressable>
+      <View style={styles.dateFields}>
+        <DateSelectionButton
+          label="FROM"
+          date={start}
+          error={Boolean(dateError)}
+          onPress={() => {
+            const selected = new Date(`${start}T00:00:00.000Z`);
+            setCalendarMonth(
+              new Date(
+                Date.UTC(selected.getUTCFullYear(), selected.getUTCMonth(), 1),
+              ),
+            );
+            setCalendarTarget('start');
+          }}
+        />
+        <Feather name="arrow-right" size={15} color={colors.mutedForeground} />
+        <DateSelectionButton
+          label="TO"
+          date={end}
+          error={Boolean(dateError)}
+          onPress={() => {
+            const selected = new Date(`${end}T00:00:00.000Z`);
+            setCalendarMonth(
+              new Date(
+                Date.UTC(selected.getUTCFullYear(), selected.getUTCMonth(), 1),
+              ),
+            );
+            setCalendarTarget('end');
+          }}
+        />
+      </View>
+      {dateError ? (
+        <Text style={[styles.dateError, { color: colors.destructive }]}>
+          {dateError}
+        </Text>
+      ) : null}
+      <MonthPickerModal
+        visible={monthPickerOpen}
+        months={months}
+        selectedMonth={selectedMonth}
+        year={selectedYear}
+        onClose={() => setMonthPickerOpen(false)}
+        onSelect={(month) => {
+          const range = getMonthDateRange(month, selectedYear);
+          setStart(range.start);
+          setEnd(range.end);
+          onChange(range);
+          setMonthPickerOpen(false);
+        }}
+      />
+      <CalendarModal
+        visible={calendarTarget !== null}
+        month={calendarMonth}
+        selectedDate={calendarTarget === 'start' ? start : end}
+        onClose={() => setCalendarTarget(null)}
+        onMonthChange={setCalendarMonth}
+        onSelect={(date) => {
+          if (calendarTarget === 'start') updateRange(date, end);
+          if (calendarTarget === 'end') updateRange(start, date);
+          setCalendarTarget(null);
+        }}
+      />
     </View>
+  );
+}
+
+function MonthPickerModal({
+  visible,
+  months,
+  selectedMonth,
+  year,
+  onClose,
+  onSelect,
+}: {
+  visible: boolean;
+  months: string[];
+  selectedMonth: number;
+  year: number;
+  onClose: () => void;
+  onSelect: (month: number) => void;
+}) {
+  const colors = useColors();
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.calendarBackdrop}>
+        <Pressable
+          accessibilityLabel="Close month selector"
+          onPress={onClose}
+          style={StyleSheet.absoluteFill}
+        />
+        <View
+          accessibilityViewIsModal
+          style={[
+            styles.monthPickerPanel,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <Text style={[styles.calendarTitle, { color: colors.foreground }]}>
+            Select a month · {year}
+          </Text>
+          <View style={styles.monthPickerGrid}>
+            {months.map((month, index) => {
+              const selected = index === selectedMonth;
+              return (
+                <View key={month} style={styles.monthPickerCell}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    onPress={() => onSelect(index)}
+                    style={[
+                      styles.monthPickerOption,
+                      selected && { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.periodText,
+                        {
+                          color: selected
+                            ? colors.primaryForeground
+                            : colors.foreground,
+                        },
+                      ]}
+                    >
+                      {month}
+                    </Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function DateSelectionButton({
+  label,
+  date,
+  error,
+  onPress,
+}: {
+  label: string;
+  date: string;
+  error: boolean;
+  onPress: () => void;
+}) {
+  const colors = useColors();
+  const day = new Date(`${date}T00:00:00.000Z`).getUTCDate();
+
+  return (
+    <View style={styles.dateField}>
+      <Text style={[styles.dateLabel, { color: colors.mutedForeground }]}>
+        {label}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label === 'FROM' ? 'Start' : 'End'} date, day ${day}. Choose date`}
+        onPress={onPress}
+        style={[
+          styles.dateButton,
+          {
+            backgroundColor: colors.card,
+            borderColor: error ? colors.destructive : colors.border,
+          },
+        ]}
+      >
+        <Text style={[styles.dateDay, { color: colors.foreground }]}>
+          {String(day).padStart(2, '0')}
+        </Text>
+        <Feather name="calendar" size={17} color={colors.mutedForeground} />
+      </Pressable>
+    </View>
+  );
+}
+
+function CalendarModal({
+  visible,
+  month,
+  selectedDate,
+  onClose,
+  onMonthChange,
+  onSelect,
+}: {
+  visible: boolean;
+  month: Date;
+  selectedDate: string;
+  onClose: () => void;
+  onMonthChange: (month: Date) => void;
+  onSelect: (date: string) => void;
+}) {
+  const colors = useColors();
+  const year = month.getUTCFullYear();
+  const monthIndex = month.getUTCMonth();
+  const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  const leadingDays = new Date(Date.UTC(year, monthIndex, 1)).getUTCDay();
+  const monthLabel = new Intl.DateTimeFormat(undefined, {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(month);
+  const weekdayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+  const dayCells = [
+    ...Array.from({ length: leadingDays }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+  ];
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.calendarBackdrop}>
+        <Pressable
+          accessibilityLabel="Close calendar"
+          onPress={onClose}
+          style={StyleSheet.absoluteFill}
+        />
+        <View
+          accessibilityViewIsModal
+          style={[
+            styles.calendarPanel,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <View style={styles.calendarHeader}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Previous month"
+              onPress={() =>
+                onMonthChange(new Date(Date.UTC(year, monthIndex - 1, 1)))
+              }
+              style={styles.calendarNav}
+            >
+              <Feather name="chevron-left" size={20} color={colors.foreground} />
+            </Pressable>
+            <Text style={[styles.calendarTitle, { color: colors.foreground }]}>
+              {monthLabel}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Next month"
+              onPress={() =>
+                onMonthChange(new Date(Date.UTC(year, monthIndex + 1, 1)))
+              }
+              style={styles.calendarNav}
+            >
+              <Feather name="chevron-right" size={20} color={colors.foreground} />
+            </Pressable>
+          </View>
+          <View style={styles.calendarGrid}>
+            {weekdayLabels.map((weekday) => (
+              <View key={weekday} style={styles.calendarCell}>
+                <Text
+                  style={[
+                    styles.weekdayText,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  {weekday}
+                </Text>
+              </View>
+            ))}
+            {dayCells.map((day, index) => {
+              if (day === null) {
+                return <View key={`blank-${index}`} style={styles.calendarCell} />;
+              }
+              const date = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const selected = date === selectedDate;
+              return (
+                <View key={date} style={styles.calendarCell}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={date}
+                    accessibilityState={{ selected }}
+                    onPress={() => onSelect(date)}
+                    style={[
+                      styles.calendarDay,
+                      selected && { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.calendarDayText,
+                        {
+                          color: selected
+                            ? colors.primaryForeground
+                            : colors.foreground,
+                        },
+                      ]}
+                    >
+                      {day}
+                    </Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function isValidIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return (
+    Number.isFinite(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value
   );
 }
 
@@ -382,23 +738,127 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
   },
-  periodTrack: {
+  dateRangePicker: { gap: 10 },
+  monthSelector: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: 13,
+    paddingHorizontal: 13,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 14,
-    padding: 4,
+    justifyContent: 'space-between',
   },
-  periodOption: {
-    flex: 1,
-    minHeight: 38,
-    borderRadius: 11,
+  monthSelectorText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+  },
+  monthPickerPanel: {
+    width: '100%',
+    maxWidth: 360,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 16,
+    gap: 12,
+  },
+  monthPickerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  monthPickerCell: {
+    width: `${100 / 3}%`,
+    padding: 3,
+  },
+  monthPickerOption: {
+    minHeight: 42,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 11,
   },
   periodText: {
     fontFamily: 'Inter_600SemiBold',
     fontSize: 12,
   },
+  dateFields: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 9,
+  },
+  dateField: { flex: 1, gap: 5 },
+  dateLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    letterSpacing: 1,
+  },
+  dateButton: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderRadius: 11,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dateDay: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 17,
+  },
+  calendarBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+  },
+  calendarPanel: {
+    width: '100%',
+    maxWidth: 360,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 16,
+    gap: 12,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  calendarNav: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  calendarTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 16,
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calendarCell: {
+    width: `${100 / 7}%`,
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekdayText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+  },
+  calendarDay: {
+    width: '82%',
+    height: '82%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 99,
+  },
+  calendarDayText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+  },
+  dateError: { fontFamily: 'Inter_500Medium', fontSize: 11 },
   sectionTitle: { gap: 4 },
   sectionHeading: {
     fontFamily: 'Inter_700Bold',
