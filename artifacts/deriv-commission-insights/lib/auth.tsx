@@ -15,8 +15,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   AuthMethod,
   DerivSession,
-  fetchPartnerOverview,
-  getCurrentMonthDateRange,
 } from "@/lib/deriv";
 import {
   DEFAULT_DERIV_APP_ID,
@@ -157,15 +155,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (accessToken: string, authMethod: AuthMethod) => {
       if (!settings.appId.trim())
         throw new Error("Enter a Deriv App ID in Settings.");
-      await fetchPartnerOverview(
-        {
-          token: accessToken,
-          method: authMethod,
-          appId: settings.appId,
-          id: "validation",
-        },
-        getCurrentMonthDateRange(),
-      );
       if (Platform.OS !== "web") {
         await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
       }
