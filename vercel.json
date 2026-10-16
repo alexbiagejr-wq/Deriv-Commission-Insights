@@ -3,7 +3,6 @@
   "services": {
     "deriv-commission-insights": {
       "root": "artifacts/deriv-commission-insights",
-      "framework": null,
       "buildCommand": "pnpm exec expo export --platform web",
       "outputDirectory": "dist"
     },
