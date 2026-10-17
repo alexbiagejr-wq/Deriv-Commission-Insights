@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
+import { Feather } from '@expo/vector-icons';
 import { CommissionGrowthChart } from '@/components/CommissionGrowthChart';
 import { ConnectPanel } from '@/components/ConnectPanel';
 import {
@@ -120,17 +121,39 @@ export default function OverviewScreen() {
       }
       onRefresh={() => void refresh()}
     >
-      <PageHeader
-        eyebrow="DERIV PARTNER INSIGHTS"
-        title="Commission overview"
-        subtitle="Partner earnings and app performance, together."
-        trailing={
-          <StatusPill
-            label={session ? 'Connected' : 'Not connected'}
-            tone={session ? 'good' : 'warning'}
+      <View style={styles.overviewHeader}>
+        <View
+          accessibilityLabel="Powered by DBOTPULSE.SITE"
+          style={[
+            styles.poweredBy,
+            { backgroundColor: colors.secondary, borderColor: colors.border },
+          ]}
+        >
+          <Feather name="zap" size={12} color={colors.primary} />
+          <Text
+            style={[styles.poweredByLabel, { color: colors.mutedForeground }]}
+          >
+            POWERED BY
+          </Text>
+          <View
+            style={[styles.brandDivider, { backgroundColor: colors.border }]}
           />
-        }
-      />
+          <Text style={[styles.brandName, { color: colors.primary }]}>
+            DBOTPULSE.SITE
+          </Text>
+        </View>
+        <PageHeader
+          eyebrow="DERIV PARTNER INSIGHTS"
+          title="Commission overview"
+          subtitle="Partner earnings and app performance, together."
+          trailing={
+            <StatusPill
+              label={session ? 'Connected' : 'Not connected'}
+              tone={session ? 'good' : 'warning'}
+            />
+          }
+        />
+      </View>
 
       {!session ? (
         <>
@@ -272,6 +295,28 @@ export default function OverviewScreen() {
 }
 
 const styles = StyleSheet.create({
+  overviewHeader: { gap: 9 },
+  poweredBy: {
+    alignSelf: 'flex-start',
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+  },
+  poweredByLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 8,
+    letterSpacing: 1,
+  },
+  brandDivider: { width: 1, height: 12 },
+  brandName: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 0.6,
+  },
   activitySummary: { padding: 20, gap: 12 },
   panelHeading: {
     flexDirection: 'row',

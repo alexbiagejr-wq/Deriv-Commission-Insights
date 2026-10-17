@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import {
   Keyboard,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/lib/auth';
 import { friendlyApiError } from '@/lib/deriv';
@@ -17,6 +19,7 @@ export function ConnectPanel() {
   const colors = useColors();
   const { connectWithToken, settings } = useAuth();
   const [token, setToken] = useState('');
+  const [isTokenVisible, setIsTokenVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,26 +55,44 @@ export function ConnectPanel() {
         </View>
       </View>
 
-      <TextInput
-        accessibilityLabel="Deriv API token"
-        autoCapitalize="none"
-        autoCorrect={false}
-        placeholder="Deriv API token"
-        placeholderTextColor={colors.mutedForeground}
-        secureTextEntry
-        value={token}
-        onChangeText={setToken}
-        onSubmitEditing={() => void handleTokenConnect()}
-        returnKeyType="go"
+      <View
         style={[
-          styles.input,
+          styles.inputContainer,
           {
             backgroundColor: colors.background,
             borderColor: colors.input,
-            color: colors.foreground,
           },
         ]}
-      />
+      >
+        <TextInput
+          accessibilityLabel="Deriv API token"
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="Deriv API token"
+          placeholderTextColor={colors.mutedForeground}
+          secureTextEntry={!isTokenVisible}
+          value={token}
+          onChangeText={setToken}
+          onSubmitEditing={() => void handleTokenConnect()}
+          returnKeyType="go"
+          style={[styles.input, { color: colors.foreground }]}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            isTokenVisible ? 'Hide API token' : 'Show API token'
+          }
+          onPress={() => setIsTokenVisible((visible) => !visible)}
+          hitSlop={8}
+          style={styles.visibilityToggle}
+        >
+          <Feather
+            name={isTokenVisible ? 'eye-off' : 'eye'}
+            size={18}
+            color={colors.mutedForeground}
+          />
+        </Pressable>
+      </View>
 
       {error ? <InlineMessage tone="error">{error}</InlineMessage> : null}
 
@@ -88,7 +109,9 @@ export function ConnectPanel() {
           : 'Your token stays in this device’s secure storage and is sent directly to Deriv.'}
       </Text>
       {!settings.appId.trim() ? (
-        <InlineMessage tone="error">Add your Deriv App ID in Settings to connect.</InlineMessage>
+        <InlineMessage tone="error">
+          Add your Deriv App ID in Settings to connect.
+        </InlineMessage>
       ) : null}
     </Panel>
   );
@@ -108,13 +131,25 @@ const styles = StyleSheet.create({
   introCopy: { flex: 1, gap: 4 },
   title: { fontFamily: 'Inter_700Bold', fontSize: 16 },
   description: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 17 },
-  input: {
+  inputContainer: {
     minHeight: 50,
     borderWidth: 1,
     borderRadius: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  input: {
+    flex: 1,
+    minWidth: 0,
     paddingHorizontal: 14,
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
+  },
+  visibilityToggle: {
+    minWidth: 44,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   privacy: { fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 16 },
 });

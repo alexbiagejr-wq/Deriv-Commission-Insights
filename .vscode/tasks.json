@@ -1,0 +1,22 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start Expo development server",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"--filter",
+				"@workspace/deriv-commission-insights",
+				"exec",
+				"expo",
+				"start",
+				"--localhost",
+				"--port",
+				"8081"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

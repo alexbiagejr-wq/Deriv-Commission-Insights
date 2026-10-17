@@ -192,6 +192,7 @@ export default function SettingsScreen() {
           onChangeText={(value) => edit("appId", value)}
           colors={colors}
           prominent
+          concealValue
         />
         {message ? (
           <InlineMessage tone={message.includes("saved") ? "success" : "error"}>
@@ -205,7 +206,6 @@ export default function SettingsScreen() {
           onPress={() => void handleSave()}
           busy={saving}
         />
-
       </Panel>
 
       <Panel style={styles.permissionsPanel}>
@@ -268,6 +268,7 @@ function Field({
   colors,
   autoCapitalize = "none",
   prominent = false,
+  concealValue = false,
 }: {
   label: string;
   value: string;
@@ -276,29 +277,59 @@ function Field({
   colors: ReturnType<typeof useColors>;
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
   prominent?: boolean;
+  concealValue?: boolean;
 }) {
+  const [isValueVisible, setIsValueVisible] = useState(false);
+
   return (
     <View style={styles.field}>
       <Text style={[styles.fieldLabel, { color: colors.foreground }]}>
         {label}
       </Text>
-      <TextInput
-        autoCapitalize={autoCapitalize}
-        autoCorrect={false}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.mutedForeground}
+      <View
         style={[
-          styles.input,
-          prominent && styles.prominentInput,
+          styles.inputContainer,
+          prominent && styles.prominentInputContainer,
           {
             backgroundColor: prominent ? colors.secondary : colors.background,
             borderColor: prominent ? colors.primary : colors.input,
-            color: prominent ? colors.primary : colors.foreground,
           },
         ]}
-      />
+      >
+        <TextInput
+          autoCapitalize={autoCapitalize}
+          autoCorrect={false}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.mutedForeground}
+          secureTextEntry={concealValue && !isValueVisible}
+          style={[
+            styles.input,
+            prominent && styles.prominentInput,
+            {
+              color: prominent ? colors.primary : colors.foreground,
+            },
+          ]}
+        />
+        {concealValue ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              isValueVisible ? `Hide ${label}` : `Show ${label}`
+            }
+            onPress={() => setIsValueVisible((visible) => !visible)}
+            hitSlop={8}
+            style={styles.visibilityToggle}
+          >
+            <Feather
+              name={isValueVisible ? "eye-off" : "eye"}
+              size={18}
+              color={colors.mutedForeground}
+            />
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -344,19 +375,30 @@ const styles = StyleSheet.create({
   field: { gap: 7 },
   fieldLabel: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
   input: {
-    minHeight: 48,
-    borderWidth: 1,
-    borderRadius: 13,
     paddingHorizontal: 13,
     fontFamily: "Inter_400Regular",
     fontSize: 13,
+    flex: 1,
+    minWidth: 0,
   },
   prominentInput: {
-    minHeight: 56,
-    borderWidth: 2,
     fontFamily: "Inter_700Bold",
     fontSize: 17,
     letterSpacing: 0.3,
+  },
+  inputContainer: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 13,
+  },
+  prominentInputContainer: { minHeight: 56, borderWidth: 2 },
+  visibilityToggle: {
+    minWidth: 42,
+    alignSelf: "stretch",
+    alignItems: "center",
+    justifyContent: "center",
   },
   permissionsPanel: { gap: 12 },
   permissionTitleRow: { flexDirection: "row", alignItems: "center", gap: 11 },
