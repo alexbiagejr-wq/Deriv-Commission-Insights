@@ -132,6 +132,7 @@ const styles = StyleSheet.create({
   title: { fontFamily: 'Inter_700Bold', fontSize: 16 },
   description: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 17 },
   inputContainer: {
+    width: '100%',
     minHeight: 50,
     borderWidth: 1,
     borderRadius: 13,
@@ -141,6 +142,8 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     minWidth: 0,
+    minHeight: 48,
+    alignSelf: 'stretch',
     paddingHorizontal: 14,
     fontFamily: 'Inter_400Regular',
     fontSize: 14,

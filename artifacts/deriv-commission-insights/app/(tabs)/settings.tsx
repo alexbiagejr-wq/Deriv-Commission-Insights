@@ -375,6 +375,8 @@ const styles = StyleSheet.create({
   field: { gap: 7 },
   fieldLabel: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
   input: {
+    minHeight: 52,
+    alignSelf: "stretch",
     paddingHorizontal: 13,
     fontFamily: "Inter_400Regular",
     fontSize: 13,
